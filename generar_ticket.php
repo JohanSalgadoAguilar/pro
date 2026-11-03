@@ -1,6 +1,5 @@
 <?php
 session_start();
-// Conexión a tu base de datos
 require 'componentes/conexion.php';
 
 // Cargar PHPMailer desde Composer
@@ -33,7 +32,7 @@ if (isset($_SESSION['usuario'])) {
 $accion = isset($_POST['accion_pdf']) ? $_POST['accion_pdf'] : 'imprimir';
 $correo_enviado = false;
 
-// 2. ENVIAR EL TICKET AL CORREO OBTENIDO DE LA BASE DE DATOS USANDO SMTP SEGURO
+// 2. ENVIAR EL TICKET AL CORREO OBTENIDO USANDO SMTP SEGURO
 if ($accion == 'enviar_correo' && !empty($correo_usuario) && filter_var($correo_usuario, FILTER_VALIDATE_EMAIL)) {
     
     $mail = new PHPMailer(true);
@@ -43,16 +42,14 @@ if ($accion == 'enviar_correo' && !empty($correo_usuario) && filter_var($correo_
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'tu_correo_real@gmail.com';         // <--- Tu correo real de envío
-        $mail->Password   = 'tu_contrasena_de_aplicacion';      // <--- Tu contraseña de aplicación de Gmail
+        $mail->Username   = 'tu_correo_real@gmail.com';         // <--- Coloca tu correo real de Gmail
+        $mail->Password   = 'tu_contrasena_de_aplicacion';      // <--- Coloca tu contraseña de aplicación de Gmail
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
-        // Remitente y Destinatario (Aquí usa la variable $correo_usuario extraída de tu BD)
         $mail->setFrom('tu_correo_real@gmail.com', 'Muebles El Baños');
         $mail->addAddress($correo_usuario, $_SESSION['usuario']);
 
-        // Construir el diseño del ticket en HTML
         $mensaje_html = '<html><body style="font-family: Arial, sans-serif; color: #333;">';
         $mensaje_html .= '<h2 style="color: #28a745;">Comprobante de Venta - Muebles El Baños</h2>';
         $mensaje_html .= '<p><b>Cliente:</b> ' . htmlspecialchars($_SESSION['usuario']) . '</p>';
@@ -102,91 +99,22 @@ if ($accion == 'enviar_correo' && !empty($correo_usuario) && filter_var($correo_
     <meta charset="UTF-8">
     <title>Ticket de Compra</title>
     <style>
-        body {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 13px;
-            color: #000;
-            background: #fff;
-            margin: 0;
-            padding: 20px;
-        }
-        .ticket {
-            max-width: 380px;
-            margin: 0 auto;
-            background: #fff;
-            padding: 15px;
-            border: 1px dashed #ccc;
-        }
-        h2, p {
-            text-align: center;
-            margin: 5px 0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            margin-bottom: 15px;
-        }
-        th, td {
-            padding: 6px 4px;
-            text-align: left;
-            vertical-align: middle;
-            font-size: 12px;
-        }
-        th {
-            border-bottom: 1px dashed #000;
-        }
-        .text-right {
-            text-align: right;
-        }
-        .img-ticket {
-            width: 35px;
-            height: 35px;
-            object-fit: cover;
-            border-radius: 3px;
-            border: 1px solid #ddd;
-            display: block;
-        }
-        .totales {
-            border-top: 1px dashed #000;
-            padding-top: 10px;
-            margin-top: 10px;
-        }
-        .alerta-correo {
-            background: #d4edda;
-            color: #155724;
-            padding: 8px;
-            font-size: 12px;
-            text-align: center;
-            margin-bottom: 15px;
-            border-radius: 4px;
-            border: 1px solid #c3e6cb;
-        }
-        .btn-imprimir {
-            display: block;
-            width: 100%;
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 10px;
-            font-size: 15px;
-            cursor: pointer;
-            margin-top: 20px;
-            border-radius: 4px;
-        }
-        .btn-imprimir:hover {
-            background: #218838;
-        }
+        body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #000; background: #fff; margin: 0; padding: 20px; }
+        .ticket { max-width: 380px; margin: 0 auto; background: #fff; padding: 15px; border: 1px dashed #ccc; }
+        h2, p { text-align: center; margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; }
+        th, td { padding: 6px 4px; text-align: left; vertical-align: middle; font-size: 12px; }
+        th { border-bottom: 1px dashed #000; }
+        .text-right { text-align: right; }
+        .img-ticket { width: 35px; height: 35px; object-fit: cover; border-radius: 3px; border: 1px solid #ddd; display: block; }
+        .totales { border-top: 1px dashed #000; padding-top: 10px; margin-top: 10px; }
+        .alerta-correo { background: #d4edda; color: #155724; padding: 8px; font-size: 12px; text-align: center; margin-bottom: 15px; border-radius: 4px; border: 1px solid #c3e6cb; }
+        .btn-imprimir { display: block; width: 100%; background: #28a745; color: white; border: none; padding: 10px; font-size: 15px; cursor: pointer; margin-top: 20px; border-radius: 4px; }
+        .btn-imprimir:hover { background: #218838; }
         @media print {
-            .btn-imprimir, .alerta-correo {
-                display: none;
-            }
-            body {
-                padding: 0;
-            }
-            .ticket {
-                border: none;
-            }
+            .btn-imprimir, .alerta-correo { display: none; }
+            body { padding: 0; }
+            .ticket { border: none; }
         }
     </style>
 </head>

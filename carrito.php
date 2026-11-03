@@ -2,13 +2,11 @@
 session_start();
 date_default_timezone_set('America/Mexico_City');
 
+// Incluir la conexión centralizada (compatible con local y producción)
+require 'componentes/conexion.php';
+
 use Dompdf\Dompdf;
 use Dompdf\Options;
-
-$host = "localhost";
-$database = "proyecto"; 
-$db_user = "root";
-$db_pass = "";
 
 $is_logged_in = isset($_SESSION['usuario']) && !empty($_SESSION['usuario']);
 
@@ -55,12 +53,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
 
         if (!empty($_SESSION['carrito'])) {
             try {
-                $conn = new PDO("mysql:host=$host;dbname=$database;charset=utf8mb4", $db_user, $db_pass, [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-                ]);
-
-                $conn->beginTransaction();
-                $stmt_update = $conn->prepare("UPDATE productos SET stock = stock - ? WHERE id = ? AND stock >= ?");
+                // Usamos la variable $conexion definida en componentes/conexion.php
+                $conexion->beginTransaction();
+                $stmt_update = $conexion->prepare("UPDATE productos SET stock = stock - ? WHERE id = ? AND stock >= ?");
                 
                 $compra_exitosa = true;
                 foreach ($_SESSION['carrito'] as $id => $item) {
@@ -80,7 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                 }
 
                 if ($compra_exitosa) {
-                    $conn->commit();
+                    $conexion->commit();
                     
                     $subtotal = array_sum(array_map(fn($p) => $p['precio'] * $p['cantidad'], $_SESSION['carrito']));
                     $iva = $subtotal * 0.16;
@@ -90,7 +85,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                     $fecha_actual = date('Y-m-d');
                     $hora_actual = date('H:i:s');
                     
-                    $stmt_correo = $conn->prepare("SELECT correo FROM usuarios WHERE usuario = ?");
+                    $stmt_correo = $conexion->prepare("SELECT correo FROM usuarios WHERE usuario = ?");
                     $stmt_correo->execute([$usuario_actual]);
                     $user_info = $stmt_correo->fetch(PDO::FETCH_ASSOC);
                     $correo_usuario = $user_info ? $user_info['correo'] : '';
@@ -140,7 +135,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                                 </thead>
                                 <tbody>';
 
-                        $stmt_img = $conn->prepare("SELECT imagen FROM productos WHERE id = ?");
+                        $stmt_img = $conexion->prepare("SELECT imagen FROM productos WHERE id = ?");
 
                         foreach ($_SESSION['carrito'] as $id => $item) {
                             $sub_p = $item['precio'] * $item['cantidad'];
@@ -152,7 +147,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                                 $prod_data = $stmt_img->fetch(PDO::FETCH_ASSOC);
                                 if ($prod_data && !empty($prod_data['imagen'])) {
                                     $imgData = $prod_data['imagen'];
-                                    // Verificamos si la imagen es WebP para evitar el error de Dompdf
                                     $is_webp = (substr($imgData, 0, 4) === 'RIFF' && substr($imgData, 8, 4) === 'WEBP');
                                     
                                     if (!$is_webp) {
@@ -227,13 +221,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                     $_SESSION['carrito'] = [];
                     $success_msg = "¡Ticket enviado con éxito a tu correo electrónico (" . htmlspecialchars($correo_usuario) . ")!";
                 } else {
-                    if (isset($conn) && $conn->inTransaction()) { $conn->rollBack(); }
+                    if (isset($conexion) && $conexion->inTransaction()) { $conexion->rollBack(); }
                     if (empty($error_msg)) {
                         $error_msg = "Error: Stock insuficiente para completar la compra.";
                     }
                 }
             } catch (Exception $e) {
-                if (isset($conn) && $conn->inTransaction()) { $conn->rollBack(); }
+                if (isset($conexion) && $conexion->inTransaction()) { $conexion->rollBack(); }
                 $error_msg = "Error en el servidor al procesar la compra: " . $e->getMessage();
             }
         }
@@ -247,6 +241,7 @@ foreach ($_SESSION['carrito'] as $item) {
 $iva = $subtotal * 0.16;
 $total_final = $subtotal + $iva;
 ?>
+<!-- El resto de tu estructura HTML del carrito se mantiene intacta -->
 <!DOCTYPE html>
 <html lang="es">
 <head>

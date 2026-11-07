@@ -6,6 +6,12 @@ $sesion_iniciada = isset($_SESSION['usuario']);
 $es_admin = $sesion_iniciada && ($_SESSION['rol'] === 'admin');
 $rol_actual = $sesion_iniciada ? $_SESSION['rol'] : 'visitante';
 
+// URL pública del sitio (se detecta sola). Si estás en localhost, el QR apuntará a localhost
+// y NO abrirá desde el celular; para probar usa la IP de tu PC (ej. http://192.168.1.50/proEs).
+$esquema  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$carpeta  = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+$base_url = $esquema . '://' . $_SERVER['HTTP_HOST'] . $carpeta;
+
 // Lógica para añadir elementos al carrito mediante POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['accion'] === 'agregar') {
     $id = $_POST['id'];
@@ -28,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
                 break;
             }
         }
+        unset($prod); // evita bugs por la referencia abierta
     }
 
     if (!$encontrado) {
@@ -79,6 +86,22 @@ $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .modal-buttons { margin-top: 15px; display: flex; justify-content: space-around; }
         .btn-si { background: #dc3545; padding: 8px 20px; color: white; border-radius: 4px; text-decoration: none; font-weight: bold; }
         .btn-no { background: #6c757d; padding: 8px 20px; color: white; border-radius: 4px; text-decoration: none; font-weight: bold; cursor: pointer; border: none; }
+
+        /* Modal de detalle de producto */
+        .fila-producto { cursor: pointer; }
+        .modal-prod { display: none; position: fixed; z-index: 20; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; }
+        .modal-prod-box { background: white; border-radius: 12px; padding: 30px; width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; position: relative; display: flex; gap: 30px; flex-wrap: wrap; box-sizing: border-box; }
+        .modal-prod-img { flex: 1 1 320px; background: #eee; border-radius: 8px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; }
+        .modal-prod-img img { max-width: 100%; max-height: 350px; object-fit: contain; }
+        .modal-prod-info { flex: 1 1 280px; }
+        .modal-prod-info h2 { color: #1976d2; margin-top: 0; }
+        .modal-prod-precio { color: #2e7d32; font-size: 24px; font-weight: bold; margin: 10px 0; }
+        .modal-prod-stock { color: #555; font-weight: bold; margin-bottom: 15px; }
+        .qr-box { width: 160px; margin: 10px auto 5px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; display: flex; justify-content: center; box-sizing: border-box; }
+        .qr-texto { text-align: center; color: #777; font-size: 13px; margin-bottom: 15px; }
+        .modal-cerrar { position: absolute; top: 10px; right: 18px; font-size: 28px; color: #999; cursor: pointer; border: none; background: none; }
+        .btn-anadir { width: 100%; padding: 12px; background: #4caf50; color: white; border: none; border-radius: 6px; font-size: 17px; font-weight: bold; cursor: pointer; }
+        .btn-anadir:hover { background: #43a047; }
     </style>
 </head>
 <body>
@@ -124,7 +147,11 @@ $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php foreach ($productos as $p): 
                     $precio_normal = $p['precio'];
                 ?>
-                    <tr>
+                    <tr class="fila-producto"
+                        data-id="<?php echo (int)$p['id']; ?>"
+                        data-nombre="<?php echo htmlspecialchars($p['nombre']); ?>"
+                        data-precio="<?php echo (float)$precio_normal; ?>"
+                        data-stock="<?php echo htmlspecialchars($p['stock']); ?>">
                         <td><?php echo htmlspecialchars($p['id']); ?></td>
                         <td>
                             <img src="obtener_imagen.php?id=<?php echo $p['id']; ?>" alt="Imagen BLOB" class="img-producto">
@@ -158,6 +185,7 @@ $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </table>
 </div>
 
+<!-- Modal de confirmación para eliminar -->
 <div id="modalConfirmacion" class="modal-confirm">
     <div class="modal-content">
         <h3>¿Estás seguro?</h3>
@@ -169,7 +197,39 @@ $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </div>
 
+<!-- Modal de detalle de producto con QR -->
+<div id="modalProducto" class="modal-prod">
+    <div class="modal-prod-box">
+        <button type="button" class="modal-cerrar" onclick="cerrarProducto()">&times;</button>
+
+        <div class="modal-prod-img">
+            <img id="mpImg" src="" alt="Producto">
+        </div>
+
+        <div class="modal-prod-info">
+            <h2 id="mpNombre"></h2>
+            <div class="modal-prod-precio" id="mpPrecio"></div>
+            <div class="modal-prod-stock" id="mpStock"></div>
+
+            <div class="qr-box"><div id="mpQR"></div></div>
+            <div class="qr-texto">Escanea para ver precio con y sin IVA</div>
+
+            <form method="POST">
+                <input type="hidden" name="accion" value="agregar">
+                <input type="hidden" name="id" id="mpId">
+                <input type="hidden" name="nombre" id="mpNombreH">
+                <input type="hidden" name="precio" id="mpPrecioH">
+                <button type="submit" class="btn-anadir">Añadir al Carrito</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
+    const BASE_URL = <?php echo json_encode($base_url); ?>;
+
+    // ----- Modal de eliminar -----
     function mostrarModal(id) {
         const modal = document.getElementById('modalConfirmacion');
         const linkSi = document.getElementById('linkSi');
@@ -178,9 +238,55 @@ $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     function ocultarModal() {
-        const modal = document.getElementById('modalConfirmacion');
-        modal.style.display = 'none';
+        document.getElementById('modalConfirmacion').style.display = 'none';
     }
+
+    // ----- Modal de detalle con QR -----
+    document.querySelectorAll('.fila-producto').forEach(fila => {
+        fila.addEventListener('click', function (e) {
+            // No abrir el modal si se hizo click en botones, links o formularios
+            if (e.target.closest('button, a, form')) return;
+
+            const id = this.dataset.id;
+            const nombre = this.dataset.nombre;
+            const precio = parseFloat(this.dataset.precio);
+            const stock = this.dataset.stock;
+
+            document.getElementById('mpImg').src = 'obtener_imagen.php?id=' + id;
+            document.getElementById('mpNombre').textContent = nombre;
+            document.getElementById('mpPrecio').textContent = '$' + precio.toFixed(2);
+            document.getElementById('mpStock').textContent = 'Stock Disponible: ' + stock;
+
+            document.getElementById('mpId').value = id;
+            document.getElementById('mpNombreH').value = nombre;
+            document.getElementById('mpPrecioH').value = precio;
+
+            // Generar QR que apunta a ver_producto.php
+            const contenedor = document.getElementById('mpQR');
+            contenedor.innerHTML = '';
+            new QRCode(contenedor, {
+                text: BASE_URL + '/ver_producto.php?id=' + id,
+                width: 136,
+                height: 136
+            });
+
+            document.getElementById('modalProducto').style.display = 'flex';
+        });
+    });
+
+    function cerrarProducto() {
+        document.getElementById('modalProducto').style.display = 'none';
+    }
+
+    // Cerrar al hacer click fuera de la caja
+    document.getElementById('modalProducto').addEventListener('click', function (e) {
+        if (e.target === this) cerrarProducto();
+    });
+
+    // Cerrar con la tecla Escape
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') cerrarProducto();
+    });
 </script>
 
 </body>

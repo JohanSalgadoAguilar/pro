@@ -15,7 +15,15 @@ if (isset($_GET['id'])) {
         $producto = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($producto && !empty($producto['imagen'])) {
-            header("Content-Type: image/jpeg"); 
+            // Detecta el tipo real (jpeg, png, webp...) y usa jpeg si no se puede
+            $mime = 'image/jpeg';
+            if (class_exists('finfo')) {
+                $detectado = (new finfo(FILEINFO_MIME_TYPE))->buffer($producto['imagen']);
+                if ($detectado && strpos($detectado, 'image/') === 0) {
+                    $mime = $detectado;
+                }
+            }
+            header("Content-Type: " . $mime);
             echo $producto['imagen'];
             exit();
         }

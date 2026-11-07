@@ -1,10 +1,10 @@
 name: Deploy a InfinityFree
 
-# Este bloque define cuándo se ejecutará la acción
 on:
   push:
     branches:
-      - master  # Indica que se activará cada vez que hagas push a la rama master
+      - master
+  workflow_dispatch: # Permite ejecutar el despliegue manualmente desde GitHub
 
 jobs:
   web-deploy:
@@ -20,4 +20,5 @@ jobs:
           server: ftpupload.net
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: /htdocs/ # Carpeta de destino en el servidor
+          server-dir: /htdocs/
+          port: 21

@@ -3,20 +3,20 @@ name: Deploy a InfinityFree
 on:
   push:
     branches:
-      - master  # Si tu rama principal se llama 'master', cambia 'main' por 'master'
+      - master
 
 jobs:
   web-deploy:
     name: Subiendo cambios vía FTP
     runs-on: ubuntu-latest
     steps:
-    - name: Obtener codigo del repositorio
-      uses: actions/checkout@v4
+      - name: Obtener codigo del repositorio
+        uses: actions/checkout@v4
 
-    - name: Sincronizar archivos por FTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-      with:
-        server: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: /htdocs/
+      - name: Deploy to InfinityFree
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftpupload.net
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: /htdocs/

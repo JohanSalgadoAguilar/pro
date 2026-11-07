@@ -17,10 +17,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Verificar si se ha seleccionado una imagen correctamente
     if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
-        // Leer los datos binarios del archivo temporal
-        $imagenData = file_get_contents($_FILES['imagen']['tmp_name']);
+        // Validar que realmente sea una imagen
+        $mime = class_exists('finfo') ? (new finfo(FILEINFO_MIME_TYPE))->file($_FILES['imagen']['tmp_name']) : 'image/jpeg';
 
-        if (!empty($nombre) && !empty($stock) && isset($precio)) {
+        if (strpos($mime, 'image/') !== 0) {
+            $error = "El archivo seleccionado no es una imagen válida.";
+        } elseif ($nombre !== '' && is_numeric($stock) && $stock >= 0 && is_numeric($precio) && $precio >= 0) {
+            // Leer los datos binarios del archivo temporal
+            $imagenData = file_get_contents($_FILES['imagen']['tmp_name']);
+
             try {
                 // Insertar incluyendo el BLOB de la imagen y el precio
                 $stmt = $conexion->prepare("INSERT INTO productos (nombre, stock, precio, imagen, fecha_creacion) VALUES (:nombre, :stock, :precio, :imagen, NOW())");
@@ -28,7 +33,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $stmt->bindParam(':nombre', $nombre);
                 $stmt->bindParam(':stock', $stock);
                 $stmt->bindParam(':precio', $precio);
-                $stmt->bindParam(':imagen', $imagenData, PDO::PARAM_LOB); // Vinculación como LOB
+                $stmt->bindParam(':imagen', $imagenData, PDO::PARAM_LOB);
 
                 if ($stmt->execute()) {
                     header("Location: productos.php");
@@ -37,10 +42,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $error = "Error al registrar el producto.";
                 }
             } catch (PDOException $e) {
-                $error = "Error en la base de datos: " . $e->getMessage();
+                $error = "Error en la base de datos. Inténtalo de nuevo.";
             }
         } else {
-            $error = "Por favor, completa todos los campos obligatorios.";
+            $error = "Por favor, completa todos los campos con valores válidos.";
         }
     } else {
         $error = "Es obligatorio seleccionar una imagen válida.";
@@ -51,44 +56,61 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Añadir Nuevo Producto</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f4f4f9; padding: 40px; display: flex; justify-content: center; align-items: center; min-height: 80vh; margin: 0; }
-        .box { background: white; padding: 25px; border-radius: 8px; width: 350px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        h3 { margin-top: 0; color: #333; text-align: center; }
-        label { display: block; margin-bottom: 5px; color: #555; font-size: 14px; }
-        input { width: 100%; padding: 8px; margin-bottom: 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-        button { width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 15px; }
-        button:hover { background: #218838; }
-        .error { color: red; font-size: 14px; margin-bottom: 10px; text-align: center; }
-        .volver { display: block; text-align: center; margin-top: 15px; color: #007bff; text-decoration: none; }
-        .volver:hover { text-decoration: underline; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TechPCs | Nuevo producto</title>
+    <link rel="stylesheet" href="componentes/estilos.css?v=1">
 </head>
 <body>
-<div class="box">
-    <h3>Añadir Nuevo Producto</h3>
-    
-    <?php if (!empty($error)) { echo "<div class='error'>$error</div>"; } ?>
 
-    <!-- Importante: enctype="multipart/form-data" para permitir la subida del archivo binario -->
-    <form method="POST" enctype="multipart/form-data">
-        <label>Nombre del Producto:</label>
-        <input type="text" name="nombre" required>
+<nav class="navbar">
+    <a href="productos.php" class="marca">Tech<span>PCs</span></a>
+    <div class="nav-der">
+        <span class="rol">Admin: <?php echo htmlspecialchars($_SESSION['usuario']); ?></span>
+        <a href="productos.php" class="btn btn-gris">← Volver al inventario</a>
+    </div>
+</nav>
 
-        <label>Stock:</label>
-        <input type="number" name="stock" required>
+<div class="container container-sm">
+    <div class="panel">
+        <div class="panel-top">
+            <div>
+                <h1>Añadir nuevo producto</h1>
+                <p>Completa los datos para agregarlo al inventario</p>
+            </div>
+        </div>
 
-        <label>Precio Normal ($):</label>
-        <input type="number" step="0.01" name="precio" placeholder="Ej. 150.00" required>
+        <div class="panel-body">
+            <?php if (!empty($error)): ?>
+                <div class="alerta alerta-error"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
 
-        <label>Imagen:</label>
-        <input type="file" name="imagen" accept="image/*" required>
+            <!-- enctype="multipart/form-data" es necesario para subir la imagen -->
+            <form method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="nombre">Nombre del producto</label>
+                    <input type="text" id="nombre" name="nombre" required>
+                </div>
 
-        <button type="submit">Guardar Producto</button>
-    </form>
-    
-    <a href="productos.php" class="volver">Volver</a>
+                <div class="form-group">
+                    <label for="stock">Stock</label>
+                    <input type="number" id="stock" name="stock" min="0" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="precio">Precio sin IVA ($)</label>
+                    <input type="number" id="precio" step="0.01" min="0" name="precio" placeholder="Ej. 150.00" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="imagen">Imagen</label>
+                    <input type="file" id="imagen" name="imagen" accept="image/*" required>
+                </div>
+
+                <button type="submit" class="btn btn-verde btn-block">Guardar producto</button>
+            </form>
+        </div>
+    </div>
 </div>
+
 </body>
 </html>

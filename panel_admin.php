@@ -24,111 +24,99 @@ if (isset($_GET['eliminar'])) {
 $stmt = $conexion->prepare("SELECT id, usuario, correo, rol, fecha_registro FROM usuarios");
 $stmt->execute();
 $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
-?>
 
+// Resumen
+$total_usuarios = count($usuarios);
+$total_admins = count(array_filter($usuarios, function ($u) { return $u['rol'] === 'admin'; }));
+$total_clientes = $total_usuarios - $total_admins;
+
+$stmt_prod = $conexion->query("SELECT COUNT(*) AS total, COALESCE(SUM(stock), 0) AS unidades FROM productos");
+$res_prod = $stmt_prod->fetch(PDO::FETCH_ASSOC);
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Panel de Administración</title>
-    <!-- Incluir Chart.js para la gráfica de barras -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TechPCs | Panel de administración</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f9; margin: 0; padding: 20px; }
-        .container { max-width: 950px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        h2 { color: #333; margin-top: 0; }
-        .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .action-buttons { margin-bottom: 20px; } /* Contenedor para los botones superiores */
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background-color: #343a40; color: white; }
-        tr:hover { background-color: #f1f1f1; }
-        .btn { padding: 8px 14px; border-radius: 4px; text-decoration: none; font-size: 14px; cursor: pointer; color: white; display: inline-block; margin-right: 5px; margin-bottom: 5px; border: none; }
-        .btn-crear { background: #28a745; }
-        .btn-productos { background: #ff851b; }
-        .btn-stock { background: #6f42c1; } /* Estilo para el botón de la gráfica */
-        .btn-bitacora { background: #17a2b8; }
-        .btn-editar { background: #ffc107; color: black; padding: 6px 12px; }
-        .btn-eliminar { background: #dc3545; padding: 6px 12px; }
-        .btn-salir { background: #6c757d; }
-        .btn:hover { opacity: 0.85; }
-
-        /* Estilos para la ventana modal nativa de la gráfica */
-        dialog.modal-stock {
-            border: none;
-            border-radius: 8px;
-            padding: 20px;
-            width: 700px;
-            max-width: 90%;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-        }
-        dialog.modal-stock::backdrop {
-            background: rgba(0, 0, 0, 0.5);
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        .modal-header h3 {
-            margin: 0;
-            color: #333;
-        }
-    </style>
+    <link rel="stylesheet" href="componentes/estilos.css?v=1">
 </head>
 <body>
 
+<nav class="navbar">
+    <a href="panel_admin.php" class="marca">Tech<span>PCs</span></a>
+    <div class="nav-der">
+        <span class="rol">Admin: <?php echo htmlspecialchars($_SESSION['usuario']); ?></span>
+        <a href="productos.php" class="btn btn-gris">Ver tienda</a>
+        <a href="logout.php" class="btn btn-gris">Cerrar sesión</a>
+    </div>
+</nav>
+
 <div class="container">
-    <div class="header-flex">
-        <h2>Panel de Control (Superusuario: <?php echo htmlspecialchars($_SESSION['usuario']); ?>)</h2>
-        <a href="logout.php" class="btn btn-salir">Cerrar Sesión</a>
+
+    <div class="stats">
+        <div class="stat"><div class="n"><?php echo $total_usuarios; ?></div><div class="l">Usuarios registrados</div></div>
+        <div class="stat" style="border-color: var(--verde);"><div class="n"><?php echo $total_clientes; ?></div><div class="l">Clientes</div></div>
+        <div class="stat" style="border-color: var(--amarillo);"><div class="n"><?php echo (int)$res_prod['total']; ?></div><div class="l">Productos</div></div>
+        <div class="stat" style="border-color: #7c3aed;"><div class="n"><?php echo (int)$res_prod['unidades']; ?></div><div class="l">Unidades en stock</div></div>
     </div>
 
-    <!-- Botones superiores organizados -->
-    <div class="action-buttons">
-        <a href="crear_usuario_admin.php" class="btn btn-crear">+ Crear Nuevo Usuario</a>
-        <a href="productos.php" class="btn btn-productos">Gestionar Productos</a>
-        <button type="button" class="btn btn-stock" onclick="abrirModalStock()">📊 Ver Gráfica de Stock</button>
-        <a href="ver_bitacora.php" class="btn btn-bitacora">Ver Bitácora de Intentos</a>
-    </div>
+    <div class="panel">
+        <div class="panel-top">
+            <div>
+                <h1>Gestión de usuarios</h1>
+                <p><?php echo $total_admins; ?> administrador(es) · <?php echo $total_clientes; ?> cliente(s)</p>
+            </div>
+            <div class="acciones">
+                <a href="crear_usuario_admin.php" class="btn btn-verde">+ Nuevo usuario</a>
+                <a href="productos.php" class="btn btn-azul">Gestionar productos</a>
+                <button type="button" class="btn btn-morado" onclick="abrirModalStock()">📊 Gráfica de stock</button>
+                <a href="ver_bitacora.php" class="btn btn-cyan">Bitácora de accesos</a>
+            </div>
+        </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Usuario</th>
-                <th>Correo</th>
-                <th>Rol</th>
-                <th>Fecha de Registro</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($usuarios as $u): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($u['id']); ?></td>
-                    <td><?php echo htmlspecialchars($u['usuario']); ?></td>
-                    <td><?php echo htmlspecialchars($u['correo']); ?></td>
-                    <td><strong><?php echo htmlspecialchars($u['rol']); ?></strong></td>
-                    <td><?php echo htmlspecialchars($u['fecha_registro']); ?></td>
-                    <td>
-                        <a href="editar_usuario.php?id=<?php echo $u['id']; ?>" class="btn btn-editar">Editar</a>
-                        <?php if ($u['id'] != $_SESSION['id']): ?>
-                            <a href="panel_admin.php?eliminar=<?php echo $u['id']; ?>" class="btn btn-eliminar" onclick="return confirm('¿Estás seguro de eliminar este usuario?');">Eliminar</a>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
+        <div class="tabla-wrap">
+            <table class="tabla">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Usuario</th>
+                        <th>Correo</th>
+                        <th>Rol</th>
+                        <th>Fecha de registro</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($usuarios as $u): ?>
+                        <tr>
+                            <td style="color: var(--suave); font-weight: 600;">#<?php echo htmlspecialchars($u['id']); ?></td>
+                            <td><strong><?php echo htmlspecialchars($u['usuario']); ?></strong></td>
+                            <td><?php echo htmlspecialchars($u['correo']); ?></td>
+                            <td><span class="badge <?php echo $u['rol'] === 'admin' ? 'admin' : 'usuario'; ?>"><?php echo htmlspecialchars($u['rol']); ?></span></td>
+                            <td><?php echo htmlspecialchars($u['fecha_registro']); ?></td>
+                            <td>
+                                <div class="acciones">
+                                    <a href="editar_usuario.php?id=<?php echo (int)$u['id']; ?>" class="btn btn-amarillo btn-sm">Editar</a>
+                                    <?php if ($u['id'] != $_SESSION['id']): ?>
+                                        <a href="panel_admin.php?eliminar=<?php echo (int)$u['id']; ?>" class="btn btn-rojo btn-sm" onclick="return confirm('¿Estás seguro de eliminar este usuario?');">Eliminar</a>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
-<!-- Modal Nativo para la Gráfica de Stock -->
+<!-- Ventana para la gráfica de stock -->
 <dialog id="modalStock" class="modal-stock">
     <div class="modal-header">
-        <h3>Monitoreo de Stock en Tiempo Real</h3>
-        <button type="button" class="btn btn-salir" onclick="cerrarModalStock()">Cerrar</button>
+        <h3>Monitoreo de stock en tiempo real</h3>
+        <button type="button" class="btn btn-oscuro btn-sm" onclick="cerrarModalStock()">Cerrar</button>
     </div>
     <div style="position: relative; height: 350px; width: 100%;">
         <canvas id="graficaStock"></canvas>
@@ -147,11 +135,12 @@ function inicializarGrafica() {
         data: {
             labels: [],
             datasets: [{
-                label: 'Unidades en Stock por Producto',
+                label: 'Unidades en stock por producto',
                 data: [],
-                backgroundColor: 'rgba(54, 162, 235, 0.7)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
+                backgroundColor: 'rgba(37, 99, 235, 0.75)',
+                borderColor: 'rgba(37, 99, 235, 1)',
+                borderWidth: 1,
+                borderRadius: 6
             }]
         },
         options: {
@@ -160,16 +149,14 @@ function inicializarGrafica() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
+                    ticks: { stepSize: 1 }
                 }
             }
         }
     });
 }
 
-// Consultar el endpoint JSON y actualizar los datos sin parpadeos molestos
+// Consultar el endpoint JSON y actualizar los datos
 function actualizarGrafica() {
     fetch('obtener_stock_json.php')
         .then(response => response.json())
@@ -177,39 +164,38 @@ function actualizarGrafica() {
             if (res.status === 'success' && chartStock) {
                 chartStock.data.labels = res.labels;
                 chartStock.data.datasets[0].data = res.data;
-                chartStock.update('none'); // Actualización fluida en tiempo real
+                chartStock.update('none');
             }
         })
         .catch(err => console.error("Error al actualizar stock:", err));
 }
 
-// Funciones para abrir y cerrar el modal controlando el bucle de actualización
 function abrirModalStock() {
-    const modal = document.getElementById('modalStock');
-    modal.showModal();
-    actualizarGrafica(); // Carga inmediata al abrir
-    
-    // Configurar actualización cada 3 segundos solo mientras el modal esté abierto
+    document.getElementById('modalStock').showModal();
+    actualizarGrafica();
+    // Actualiza cada 3 segundos solo mientras la ventana esté abierta
     if (!intervaloStock) {
         intervaloStock = setInterval(actualizarGrafica, 3000);
     }
 }
 
 function cerrarModalStock() {
-    const modal = document.getElementById('modalStock');
-    modal.close();
-    
-    // Detener el intervalo cuando se cierre el modal para ahorrar recursos
+    document.getElementById('modalStock').close();
     if (intervaloStock) {
         clearInterval(intervaloStock);
         intervaloStock = null;
     }
 }
 
-// Inicializar la instancia de la gráfica al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
-    inicializarGrafica();
+// Si se cierra con la tecla Escape, también se detiene la actualización
+document.getElementById('modalStock').addEventListener('close', function () {
+    if (intervaloStock) {
+        clearInterval(intervaloStock);
+        intervaloStock = null;
+    }
 });
+
+document.addEventListener('DOMContentLoaded', inicializarGrafica);
 </script>
 
 </body>

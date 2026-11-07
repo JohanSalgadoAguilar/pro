@@ -35,6 +35,7 @@ $correo_enviado = false;
 // 2. ENVIAR EL TICKET AL CORREO OBTENIDO USANDO SMTP SEGURO
 if ($accion == 'enviar_correo' && !empty($correo_usuario) && filter_var($correo_usuario, FILTER_VALIDATE_EMAIL)) {
     
+    $cfg = require 'componentes/correo_config.php';
     $mail = new PHPMailer(true);
 
     try {
@@ -42,20 +43,21 @@ if ($accion == 'enviar_correo' && !empty($correo_usuario) && filter_var($correo_
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'tu_correo_real@gmail.com';         // <--- Coloca tu correo real de Gmail
-        $mail->Password   = 'tu_contrasena_de_aplicacion';      // <--- Coloca tu contraseña de aplicación de Gmail
+        $mail->Username   = $cfg['usuario'];
+        $mail->Password   = $cfg['clave'];
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
+        $mail->CharSet    = 'UTF-8';
 
-        $mail->setFrom('tu_correo_real@gmail.com', 'Muebles El Baños');
+        $mail->setFrom($cfg['usuario'], $cfg['remitente']);
         $mail->addAddress($correo_usuario, $_SESSION['usuario']);
 
-        $mensaje_html = '<html><body style="font-family: Arial, sans-serif; color: #333;">';
-        $mensaje_html .= '<h2 style="color: #28a745;">Comprobante de Venta - Muebles El Baños</h2>';
+        $mensaje_html = '<html><body style="font-family: Arial, sans-serif; color: #1e293b;">';
+        $mensaje_html .= '<h2 style="color: #2563eb;">Comprobante de venta - TechPCs</h2>';
         $mensaje_html .= '<p><b>Cliente:</b> ' . htmlspecialchars($_SESSION['usuario']) . '</p>';
         $mensaje_html .= '<p><b>Fecha:</b> ' . date('d/m/Y H:i:s') . '</p>';
-        $mensaje_html .= '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 10px;">';
-        $mensaje_html .= '<tr style="background: #343a40; color: white;"><th>Producto</th><th>Cantidad</th><th>Precio Unitario</th><th>Subtotal</th></tr>';
+        $mensaje_html .= '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 10px; border-color: #e2e8f0;">';
+        $mensaje_html .= '<tr style="background: #0f172a; color: white;"><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr>';
         
         $subtotal_general = 0;
         foreach ($_SESSION['carrito'] as $item) {
@@ -78,12 +80,12 @@ if ($accion == 'enviar_correo' && !empty($correo_usuario) && filter_var($correo_
         $mensaje_html .= '</table>';
         $mensaje_html .= '<br><p align="right"><b>Subtotal:</b> $' . number_format($subtotal_general, 2) . '</p>';
         $mensaje_html .= '<p align="right"><b>IVA (16%):</b> $' . number_format($iva, 2) . '</p>';
-        $mensaje_html .= '<p align="right" style="font-size: 16px; color: #28a745;"><b>TOTAL:</b> $' . number_format($total, 2) . '</p>';
-        $mensaje_html .= '<p style="margin-top: 20px; text-align: center;">¡Gracias por su compra en Muebles El Baños!</p>';
+        $mensaje_html .= '<p align="right" style="font-size: 16px; color: #2563eb;"><b>TOTAL:</b> $' . number_format($total, 2) . '</p>';
+        $mensaje_html .= '<p style="margin-top: 20px; text-align: center;">Gracias por su compra en TechPCs.</p>';
         $mensaje_html .= '</body></html>';
 
         $mail->isHTML(true);
-        $mail->Subject = 'Tu Ticket de Compra - Muebles El Baños';
+        $mail->Subject = 'Tu ticket de compra - TechPCs';
         $mail->Body    = $mensaje_html;
 
         $mail->send();
@@ -97,36 +99,41 @@ if ($accion == 'enviar_correo' && !empty($correo_usuario) && filter_var($correo_
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Ticket de Compra</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TechPCs | Ticket de compra</title>
     <style>
-        body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #000; background: #fff; margin: 0; padding: 20px; }
-        .ticket { max-width: 380px; margin: 0 auto; background: #fff; padding: 15px; border: 1px dashed #ccc; }
+        body { font-family: 'Courier New', Courier, monospace; font-size: 13px; color: #0f172a; background: #f1f5f9; margin: 0; padding: 20px; }
+        .ticket { max-width: 380px; margin: 0 auto; background: #fff; padding: 22px 18px; border-radius: 10px; box-shadow: 0 4px 16px rgba(15,23,42,0.12); }
+        .logo { text-align: center; font-family: -apple-system, "Segoe UI", Arial, sans-serif; font-size: 26px; font-weight: 800; letter-spacing: 1px; margin: 0; }
+        .logo span { color: #2563eb; }
         h2, p { text-align: center; margin: 5px 0; }
+        .sub { color: #64748b; font-size: 12px; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; }
         th, td { padding: 6px 4px; text-align: left; vertical-align: middle; font-size: 12px; }
-        th { border-bottom: 1px dashed #000; }
+        th { border-bottom: 1px dashed #0f172a; }
         .text-right { text-align: right; }
         .img-ticket { width: 35px; height: 35px; object-fit: cover; border-radius: 3px; border: 1px solid #ddd; display: block; }
-        .totales { border-top: 1px dashed #000; padding-top: 10px; margin-top: 10px; }
-        .alerta-correo { background: #d4edda; color: #155724; padding: 8px; font-size: 12px; text-align: center; margin-bottom: 15px; border-radius: 4px; border: 1px solid #c3e6cb; }
-        .btn-imprimir { display: block; width: 100%; background: #28a745; color: white; border: none; padding: 10px; font-size: 15px; cursor: pointer; margin-top: 20px; border-radius: 4px; }
-        .btn-imprimir:hover { background: #218838; }
+        .totales { border-top: 1px dashed #0f172a; padding-top: 10px; margin-top: 10px; }
+        .totales div { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .alerta-correo { background: #dcfce7; color: #15803d; padding: 8px; font-size: 12px; text-align: center; margin: 12px 0; border-radius: 6px; }
+        .btn-imprimir { display: block; width: 100%; background: #2563eb; color: white; border: none; padding: 11px; font-size: 15px; cursor: pointer; margin-top: 20px; border-radius: 8px; font-weight: bold; }
+        .btn-imprimir:hover { background: #1d4ed8; }
         @media print {
             .btn-imprimir, .alerta-correo { display: none; }
-            body { padding: 0; }
-            .ticket { border: none; }
+            body { padding: 0; background: #fff; }
+            .ticket { box-shadow: none; }
         }
     </style>
 </head>
 <body <?php echo ($accion == 'imprimir') ? 'onload="window.print();"' : ''; ?>>
 
 <div class="ticket">
-    <h2>MUEBLES EL BAÑOS</h2>
-    <p>Comprobante de Venta</p>
-    <p style="font-size: 11px; color: #555;"><?php echo date('d/m/Y H:i:s'); ?></p>
+    <h1 class="logo">TECH<span>PCS</span></h1>
+    <p class="sub">Comprobante de venta</p>
+    <p class="sub"><?php echo date('d/m/Y H:i:s'); ?></p>
     
     <?php if ($correo_enviado): ?>
-        <div class="alerta-correo">¡Ticket enviado con éxito a <?php echo htmlspecialchars($correo_usuario); ?>!</div>
+        <div class="alerta-correo">Ticket enviado con éxito a <?php echo htmlspecialchars($correo_usuario); ?>.</div>
     <?php endif; ?>
 
     <table>
@@ -148,7 +155,7 @@ if ($accion == 'enviar_correo' && !empty($correo_usuario) && filter_var($correo_
             ?>
             <tr>
                 <td>
-                    <img src="obtener_imagen.php?id=<?php echo $item['id']; ?>" alt="Img" class="img-ticket">
+                    <img src="obtener_imagen.php?id=<?php echo (int)$item['id']; ?>" alt="Img" class="img-ticket">
                 </td>
                 <td>
                     <?php echo htmlspecialchars($item['nombre']); ?><br>
@@ -170,12 +177,12 @@ if ($accion == 'enviar_correo' && !empty($correo_usuario) && filter_var($correo_
     <div class="totales">
         <div><span>Subtotal:</span> <span>$<?php echo number_format($subtotal_general, 2); ?></span></div>
         <div><span>IVA (16%):</span> <span>$<?php echo number_format($iva_general, 2); ?></span></div>
-        <div style="font-weight: bold; font-size: 14px; margin-top: 5px;">
+        <div style="font-weight: bold; font-size: 15px; margin-top: 6px;">
             <span>TOTAL:</span> <span>$<?php echo number_format($total_con_iva, 2); ?></span>
         </div>
     </div>
 
-    <p style="margin-top: 20px; font-size: 11px;">¡Gracias por su compra, <?php echo htmlspecialchars($_SESSION['usuario'] ?? 'Cliente'); ?>!</p>
+    <p style="margin-top: 22px; font-size: 11px;">Gracias por su compra, <?php echo htmlspecialchars($_SESSION['usuario'] ?? 'Cliente'); ?>.</p>
 
     <button class="btn-imprimir" onclick="window.print()">Imprimir / Guardar PDF</button>
 </div>

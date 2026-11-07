@@ -3,10 +3,18 @@ session_start();
 include 'componentes/conexion.php';
 
 $mensaje = "";
+$tipo = "error";
+
+// Mensaje enviado desde otras páginas (ej. carrito: "Debes iniciar sesión...")
+if (isset($_GET['msg']) && $_GET['msg'] !== '') {
+    $mensaje = $_GET['msg'];
+    $tipo = "info";
+}
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $usuario = trim($_POST['usuario']);
     $password = trim($_POST['password']);
+    $mensaje = "";
 
     if (!empty($usuario) && !empty($password)) {
         try {
@@ -31,8 +39,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         header("Location: panel_admin.php");
                         exit();
                     } else {
-                        // Redirigir al usuario normal al catálogo de productos
-                        header("Location: productos.php");
+                        // Si venía del carrito, regresa ahí; si no, al catálogo
+                        $destino = 'productos.php';
+                        if (isset($_SESSION['redirect_after_login']) && $_SESSION['redirect_after_login'] === 'carrito.php') {
+                            $destino = 'carrito.php';
+                        }
+                        unset($_SESSION['redirect_after_login']);
+                        header("Location: " . $destino);
                         exit();
                     }
                 } else {
@@ -40,67 +53,64 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmtLog = $conexion->prepare("INSERT INTO bitacora_intentos (usuario_id, usuario_ingresado, resultado) VALUES (:uid, :u, 'fallido')");
                     $stmtLog->execute([':uid' => $user['id'], ':u' => $usuario]);
 
-                    $mensaje = "<p style='color: red;'>Contraseña incorrecta.</p>";
+                    $mensaje = "Contraseña incorrecta.";
+                    $tipo = "error";
                 }
             } else {
                 // 3. REGISTRAR INTENTO FALLIDO (El usuario no existe)
                 $stmtLog = $conexion->prepare("INSERT INTO bitacora_intentos (usuario_id, usuario_ingresado, resultado) VALUES (NULL, :u, 'fallido')");
                 $stmtLog->execute([':u' => $usuario]);
 
-                $mensaje = "<p style='color: red;'>El usuario no existe.</p>";
+                $mensaje = "El usuario no existe.";
+                $tipo = "error";
             }
         } catch (PDOException $e) {
-            $mensaje = "<p style='color: red;'>Error en el sistema: " . $e->getMessage() . "</p>";
+            $mensaje = "Error en el sistema. Inténtalo de nuevo más tarde.";
+            $tipo = "error";
         }
     } else {
-        $mensaje = "<p style='color: orange;'>Completa todos los campos.</p>";
+        $mensaje = "Completa todos los campos.";
+        $tipo = "aviso";
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Inicio de Sesión</title>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 320px; }
-        .login-card h2 { text-align: center; margin-bottom: 20px; color: #333; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; color: #666; }
-        .form-group input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-        .btn { width: 100%; padding: 10px; background: #007bff; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 16px; margin-bottom: 10px; }
-        .btn:hover { background: #0056b3; }
-        .btn-invitado { width: 100%; padding: 10px; background: #6c757d; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 16px; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
-        .btn-invitado:hover { background: #5a6268; }
-        .nav-links { text-align: center; margin-top: 15px; font-size: 14px; }
-        .nav-links a { color: #007bff; text-decoration: none; }
-        .nav-links a:hover { text-decoration: underline; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TechPCs | Iniciar sesión</title>
+    <link rel="stylesheet" href="componentes/estilos.css?v=1">
 </head>
-<body>
+<body class="auth-body">
 
-<div class="login-card">
-    <h2>Login Principal</h2>
-    <?php echo $mensaje; ?>
+<div class="auth-card">
+    <h1 class="auth-logo">Tech<span>PCs</span></h1>
+    <p class="auth-sub">Inicia sesión para continuar</p>
+
+    <?php if ($mensaje !== ""): ?>
+        <div class="alerta alerta-<?php echo $tipo; ?>"><?php echo htmlspecialchars($mensaje); ?></div>
+    <?php endif; ?>
+
     <form action="index.php" method="POST">
         <div class="form-group">
-            <label for="usuario">Usuario:</label>
-            <input type="text" id="usuario" name="usuario" required>
+            <label for="usuario">Usuario</label>
+            <input type="text" id="usuario" name="usuario" placeholder="Tu nombre de usuario" required autofocus>
         </div>
         <div class="form-group">
-            <label for="password">Contraseña:</label>
-            <input type="password" id="password" name="password" required>
+            <label for="password">Contraseña</label>
+            <input type="password" id="password" name="password" placeholder="••••••••" required>
         </div>
-        <button type="submit" class="btn">Entrar</button>
+        <button type="submit" class="btn btn-azul btn-block">Entrar</button>
     </form>
-    
-    <!-- Botón para ver productos sin registrarse -->
-    <a href="productos.php" class="btn-invitado">Ver Productos como Invitado</a>
 
-    <div class="nav-links">
-        <p>¿No tienes cuenta? <a href="registro.php">Regístrate</a></p>
+    <div class="divisor">o</div>
+
+    <!-- Botón para ver productos sin registrarse -->
+    <a href="productos.php" class="btn btn-oscuro btn-block">Ver catálogo como invitado</a>
+
+    <div class="auth-links">
+        ¿No tienes cuenta? <a href="registro.php">Regístrate</a>
     </div>
 </div>
 

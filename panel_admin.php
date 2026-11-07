@@ -72,6 +72,7 @@ $res_prod = $stmt_prod->fetch(PDO::FETCH_ASSOC);
                 <a href="crear_usuario_admin.php" class="btn btn-verde">+ Nuevo usuario</a>
                 <a href="productos.php" class="btn btn-azul">Gestionar productos</a>
                 <button type="button" class="btn btn-morado" onclick="abrirModalStock()">📊 Gráfica de stock</button>
+                <a href="reporte_ventas.php" class="btn btn-azul">📈 Reporte de ventas</a>
                 <a href="ver_bitacora.php" class="btn btn-cyan">Bitácora de accesos</a>
             </div>
         </div>

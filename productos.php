@@ -14,9 +14,20 @@ $base_url = $esquema . '://' . $_SERVER['HTTP_HOST'] . $carpeta;
 
 // Lógica para añadir elementos al carrito mediante POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['accion'] === 'agregar') {
-    $id = $_POST['id'];
-    $nombre = $_POST['nombre'];
-    $precio = $_POST['precio'];
+    $id = (int)$_POST['id'];
+
+    // El nombre y el precio se leen de la base de datos (no se confía en lo que envía el navegador)
+    $stmt_p = $conexion->prepare("SELECT nombre, precio, stock FROM productos WHERE id = :id");
+    $stmt_p->execute([':id' => $id]);
+    $prod_db = $stmt_p->fetch(PDO::FETCH_ASSOC);
+
+    if (!$prod_db || (int)$prod_db['stock'] <= 0) {
+        header("Location: productos.php");
+        exit();
+    }
+
+    $nombre = $prod_db['nombre'];
+    $precio = $prod_db['precio'];
 
     $item = [
         'id' => $id,

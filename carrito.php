@@ -74,7 +74,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                 }
 
                 if ($compra_exitosa) {
-                    $conexion->commit();
                     $correo_ok = false;
                     
                     $subtotal = array_sum(array_map(fn($p) => $p['precio'] * $p['cantidad'], $_SESSION['carrito']));
@@ -84,6 +83,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                     $usuario_actual = $_SESSION['usuario'];
                     $fecha_actual = date('Y-m-d');
                     $hora_actual = date('H:i:s');
+
+                    // REGISTRAR LA VENTA (alimenta el reporte de ventas).
+                    // La fecha se manda desde PHP para usar la hora de México y no la del servidor.
+                    $stmt_venta = $conexion->prepare("INSERT INTO ventas (usuario, subtotal, iva, total, fecha_venta) VALUES (?, ?, ?, ?, ?)");
+                    $stmt_venta->execute([$usuario_actual, $subtotal, $iva, $total_final, $fecha_actual . ' ' . $hora_actual]);
+                    $venta_id = $conexion->lastInsertId();
+
+                    $stmt_det = $conexion->prepare("INSERT INTO detalle_ventas (venta_id, producto_id, nombre_producto, cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)");
+                    foreach ($_SESSION['carrito'] as $id => $item) {
+                        $pid = isset($item['id']) ? $item['id'] : $id;
+                        $stmt_det->execute([$venta_id, $pid, $item['nombre'], $item['cantidad'], $item['precio'], $item['precio'] * $item['cantidad']]);
+                    }
+
+                    // Todo salió bien: se confirma stock + venta juntos
+                    $conexion->commit();
                     
                     $stmt_correo = $conexion->prepare("SELECT correo FROM usuarios WHERE usuario = ?");
                     $stmt_correo->execute([$usuario_actual]);

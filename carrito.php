@@ -2,8 +2,8 @@
 session_start();
 date_default_timezone_set('America/Mexico_City');
 
-// Incluir la conexión centralizada (compatible con local y producción)
-require 'componentes/conexion.php';
+// Incluir la conexión centralizada desde la raíz
+require 'conexion.php';
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -53,7 +53,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
 
         if (!empty($_SESSION['carrito'])) {
             try {
-                // Usamos la variable $conexion definida en componentes/conexion.php
+                // Usamos la variable $conexion definida en conexion.php
                 $conexion->beginTransaction();
                 $stmt_update = $conexion->prepare("UPDATE productos SET stock = stock - ? WHERE id = ? AND stock >= ?");
                 
@@ -241,7 +241,6 @@ foreach ($_SESSION['carrito'] as $item) {
 $iva = $subtotal * 0.16;
 $total_final = $subtotal + $iva;
 ?>
-<!-- El resto de tu estructura HTML del carrito se mantiene intacta -->
 <!DOCTYPE html>
 <html lang="es">
 <head>

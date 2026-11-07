@@ -1,14 +1,16 @@
 <?php
-// Conexión centralizada PDO para la cuenta nueva
-$servername = "sql301.byetcluster.com"; // Verifica este hostname en MySQL Details de tu panel
+$servername = "sql103.infinityfree.com";
 $username   = "if0_43382934";
-$password   = "P41YcHIsHOIDM";
-$dbname     = "if0_43382934_proyecto"; // Cambia _proyecto si tu base de datos tiene otro sufijo
+$password   = "cr0qu3tAs0o77";
+$dbname     = "if0_43382934_proyecto"; 
 
 try {
-    $conexion = new PDO("mysql:host=$servername;dbname=$dbname;charset=utf8mb4", $username, $password);
-    $conexion->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
+    $conn = new PDO("mysql:host=$servername;dbname=$dbname;charset=utf8", $username, $password);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    // Declarar ambas variables para garantizar compatibilidad en todo el proyecto
+    $conexion = $conn;
+} catch(PDOException $e) {
     die("Error de conexión a la base de datos: " . $e->getMessage());
 }
 ?>

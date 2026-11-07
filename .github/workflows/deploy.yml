@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch: # Permite ejecutar el despliegue manualmente desde GitHub
+  workflow_dispatch:
 
 jobs:
   web-deploy:
@@ -22,3 +22,4 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: /htdocs/
           port: 21
+          dangerous-clean-slate: true

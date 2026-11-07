@@ -1,8 +1,8 @@
 <?php
-$servername = "sql301.byetcluster.com";
-$username = "if0_43348523";
-$password = "cr0qu3tAs0o7";
-$dbname = "if0_43348523_proyecto";
+$servername = "sql103.infinityfree.com";
+$username   = "if0_43382934";
+$password   = "cr0qu3tAs0o77";
+$dbname     = "if0_43382932_proyecto"; // Cambia el sufijo _proyecto por el nombre exacto de tu BD en phpMyAdmin
 
 $conn = new mysqli($servername, $username, $password, $dbname);
 

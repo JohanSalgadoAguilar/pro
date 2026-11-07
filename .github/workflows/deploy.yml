@@ -1,9 +1,10 @@
 name: Deploy a InfinityFree
 
+# Este bloque define cuándo se ejecutará la acción
 on:
   push:
     branches:
-      - master
+      - master  # Indica que se activará cada vez que hagas push a la rama master
 
 jobs:
   web-deploy:
@@ -19,4 +20,4 @@ jobs:
           server: ftpupload.net
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: /htdocs/
+          server-dir: /htdocs/ # Carpeta de destino en el servidor

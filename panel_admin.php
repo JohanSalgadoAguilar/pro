@@ -32,6 +32,24 @@ $total_clientes = $total_usuarios - $total_admins;
 
 $stmt_prod = $conexion->query("SELECT COUNT(*) AS total, COALESCE(SUM(stock), 0) AS unidades FROM productos");
 $res_prod = $stmt_prod->fetch(PDO::FETCH_ASSOC);
+
+// Contar total de escaneos QR históricos para las estadísticas superiores y consulta de detalle
+$escaneos_admin = [];
+$total_escaneos_qr = 0;
+try {
+    $stmt_qr_admin = $conexion->prepare("
+        SELECT p.id, p.nombre, COUNT(e.id) AS veces
+        FROM productos p
+        LEFT JOIN escaneos_qr e ON e.producto_id = p.id
+        GROUP BY p.id, p.nombre
+        ORDER BY veces DESC, p.nombre ASC
+    ");
+    $stmt_qr_admin->execute();
+    $escaneos_admin = $stmt_qr_admin->fetchAll(PDO::FETCH_ASSOC);
+    $total_escaneos_qr = array_sum(array_column($escaneos_admin, 'veces'));
+} catch (PDOException $e) {
+    $escaneos_admin = null; // Por si la tabla aún no existe
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -60,6 +78,7 @@ $res_prod = $stmt_prod->fetch(PDO::FETCH_ASSOC);
         <div class="stat" style="border-color: var(--verde);"><div class="n"><?php echo $total_clientes; ?></div><div class="l">Clientes</div></div>
         <div class="stat" style="border-color: var(--amarillo);"><div class="n"><?php echo (int)$res_prod['total']; ?></div><div class="l">Productos</div></div>
         <div class="stat" style="border-color: #7c3aed;"><div class="n"><?php echo (int)$res_prod['unidades']; ?></div><div class="l">Unidades en stock</div></div>
+        <div class="stat" style="border-color: #0284c7;"><div class="n"><?php echo (int)$total_escaneos_qr; ?></div><div class="l">Escaneos QR totales</div></div>
     </div>
 
     <div class="panel">
@@ -111,6 +130,57 @@ $res_prod = $stmt_prod->fetch(PDO::FETCH_ASSOC);
             </table>
         </div>
     </div>
+
+    <!-- Apartado de Visitas / Escaneos de QR en el Panel Admin -->
+    <div class="panel" style="margin-top: 24px;">
+        <div class="panel-top">
+            <div>
+                <h1>Visitas de productos por código QR</h1>
+                <p><?php echo (int)$total_escaneos_qr; ?> escaneos totales registrados desde códigos QR</p>
+            </div>
+            <div>
+                <a href="reporte_ventas.php" class="btn btn-azul">Ver reporte detallado</a>
+            </div>
+        </div>
+
+        <?php if ($escaneos_admin === null): ?>
+            <div class="panel-body" style="padding: 20px; color: var(--suave);">
+                Aún no existe la tabla <strong>escaneos_qr</strong> en la base de datos.
+            </div>
+        <?php else: ?>
+            <div class="tabla-wrap">
+                <table class="tabla">
+                    <thead>
+                        <tr>
+                            <th>ID Producto</th>
+                            <th>Nombre del Producto</th>
+                            <th class="text-center">Visitas / Escaneos QR</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (count($escaneos_admin) > 0): ?>
+                            <?php foreach ($escaneos_admin as $eqr): ?>
+                                <tr>
+                                    <td style="color: var(--suave); font-weight: 600;">#<?php echo (int)$eqr['id']; ?></td>
+                                    <td><strong><?php echo htmlspecialchars($eqr['nombre']); ?></strong></td>
+                                    <td class="text-center">
+                                        <span class="badge" style="background: #e0e7ff; color: #3730a3; font-size: 14px; padding: 6px 12px;">
+                                            <?php echo (int)$eqr['veces']; ?> visitas
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="3" class="text-center" style="padding: 30px; color: var(--suave);">No hay registros de escaneos QR todavía.</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
+
 </div>
 
 <!-- Ventana para la gráfica de stock -->

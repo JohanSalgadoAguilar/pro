@@ -97,6 +97,25 @@ if (isset($_GET['exportar']) && $_GET['exportar'] === 'csv') {
     exit();
 }
 
+// Escaneos de QR por producto en el periodo (incluye productos con 0 escaneos)
+$escaneos = [];
+$total_escaneos = 0;
+try {
+    $stmt_qr = $conexion->prepare("
+        SELECT p.id, p.nombre, COUNT(e.id) AS veces
+        FROM productos p
+        LEFT JOIN escaneos_qr e ON e.producto_id = p.id
+            AND e.fecha_escaneo >= :desde AND e.fecha_escaneo < DATE_ADD(:hasta, INTERVAL 1 DAY)
+        GROUP BY p.id, p.nombre
+        ORDER BY veces DESC, p.nombre ASC
+    ");
+    $stmt_qr->execute([':desde' => $desde, ':hasta' => $hasta]);
+    $escaneos = $stmt_qr->fetchAll(PDO::FETCH_ASSOC);
+    $total_escaneos = array_sum(array_column($escaneos, 'veces'));
+} catch (PDOException $e) {
+    $escaneos = null; // la tabla escaneos_qr aún no existe
+}
+
 // Atajos de periodo
 $rangos = [
     'Hoy'            => [$hoy, $hoy],
@@ -203,6 +222,38 @@ $qs_actual = http_build_query(['desde' => $desde, 'hasta' => $hasta]);
         </div>
     </div>
     <?php endif; ?>
+
+    <div class="panel">
+        <div class="panel-top">
+            <div>
+                <h1 style="font-size: 18px;">Escaneos de QR por producto</h1>
+                <?php if ($escaneos !== null): ?><p><?php echo (int)$total_escaneos; ?> escaneo(s) en el periodo</p><?php endif; ?>
+            </div>
+        </div>
+        <?php if ($escaneos === null): ?>
+            <div class="panel-body" style="color: var(--suave);">Aún no existe la tabla <strong>escaneos_qr</strong>. Créala en phpMyAdmin para empezar a contar.</div>
+        <?php else: ?>
+        <div class="tabla-wrap">
+            <table class="tabla">
+                <thead>
+                    <tr><th>Producto</th><th class="text-center">Veces escaneado</th></tr>
+                </thead>
+                <tbody>
+                    <?php if (count($escaneos) > 0): ?>
+                        <?php foreach ($escaneos as $e): ?>
+                            <tr>
+                                <td><strong><?php echo htmlspecialchars($e['nombre']); ?></strong></td>
+                                <td class="text-center"><?php echo (int)$e['veces']; ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr><td colspan="2" class="text-center" style="padding: 30px; color: var(--suave);">No hay productos registrados.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </div>
 
     <div class="panel">
         <div class="panel-top"><div><h1 style="font-size: 18px;">Detalle de ventas</h1></div></div>

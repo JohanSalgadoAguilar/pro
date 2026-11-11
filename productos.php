@@ -380,7 +380,7 @@ $total_carrito = isset($_SESSION['carrito']) ? count($_SESSION['carrito']) : 0;
             const contenedor = document.getElementById('mpQR');
             contenedor.innerHTML = '';
             new QRCode(contenedor, {
-                text: BASE_URL + '/ver_producto.php?id=' + id,
+                text: BASE_URL + '/ver_producto.php?id=' + id + '&src=qr',
                 width: 136,
                 height: 136
             });

@@ -117,3 +117,7 @@ dialog.modal-stock::backdrop { background: rgba(15,23,42,0.6); }
     .panel-top, .panel-body { padding: 16px; }
     .resumen { margin: 0 16px 16px; max-width: none; }
 }
+
+/* Efecto al pasar el cursor sobre las miniaturas de productos */
+.img-prod { transition: transform .25s ease, box-shadow .25s ease; position: relative; }
+.img-prod:hover { transform: scale(1.2) rotate(-3deg); box-shadow: 0 10px 24px rgba(15,23,42,0.3); z-index: 3; }

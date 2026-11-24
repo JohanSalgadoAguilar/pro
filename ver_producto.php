@@ -39,7 +39,8 @@ if ($p) {
         header { background: #0b1220; color: white; text-align: center; padding: 18px 10px; font-size: 26px; font-weight: 800; letter-spacing: 0.5px; border-bottom: 3px solid #2563eb; }
         header span { color: #3b82f6; }
         .card { background: #ffffff; max-width: 420px; margin: 22px auto; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
-        .card img { width: 100%; display: block; background: #f1f5f9; max-height: 380px; object-fit: contain; }
+        .visor { position: relative; height: 340px; background: #f1f5f9; overflow: hidden; }
+        .visor img { width: 100%; height: 100%; object-fit: contain; display: block; }
         .body { padding: 22px; }
         h1 { color: #1e293b; font-size: 24px; margin: 0 0 12px; }
         .stock { display: inline-block; padding: 6px 14px; border-radius: 20px; margin-bottom: 18px; font-size: 14px; font-weight: 700; background: #dcfce7; color: #15803d; }
@@ -57,7 +58,9 @@ if ($p) {
 
 <div class="card">
 <?php if ($p): ?>
-    <img src="obtener_imagen.php?id=<?php echo (int)$p['id']; ?>" alt="<?php echo htmlspecialchars($p['nombre']); ?>">
+    <div class="visor" id="visor">
+        <img src="obtener_imagen.php?id=<?php echo (int)$p['id']; ?>" alt="<?php echo htmlspecialchars($p['nombre']); ?>">
+    </div>
     <div class="body">
         <h1><?php echo htmlspecialchars($p['nombre']); ?></h1>
 
@@ -84,5 +87,13 @@ if ($p) {
 </div>
 
 <footer>© <?php echo date('Y'); ?> TechPCs</footer>
+
+<?php if ($p): ?>
+<script src="componentes/visor3d.js?v=1"></script>
+<script>
+    // Animación 3D de la imagen (si falla, se queda la imagen normal)
+    Visor3D.montar(document.getElementById('visor'), 'obtener_imagen.php?id=<?php echo (int)$p['id']; ?>');
+</script>
+<?php endif; ?>
 </body>
 </html>

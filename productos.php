@@ -132,6 +132,8 @@ $total_carrito = isset($_SESSION['carrito']) ? count($_SESSION['carrito']) : 0;
         tbody tr.fila-producto:hover { background: #f1f5f9; }
         .col-id { color: var(--suave); font-weight: 600; width: 60px; }
         .img-producto { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 1px solid var(--borde); background: #f8fafc; display: block; }
+        .img-producto { transition: transform .25s ease, box-shadow .25s ease; position: relative; }
+        .img-producto:hover { transform: scale(1.2) rotate(-3deg); box-shadow: 0 10px 24px rgba(15,23,42,0.3); z-index: 3; }
         .nombre-prod { font-weight: 600; }
         .precio { font-weight: 700; white-space: nowrap; }
         .badge { display: inline-block; padding: 4px 11px; border-radius: 20px; font-size: 12px; font-weight: 700; white-space: nowrap; }
@@ -151,7 +153,7 @@ $total_carrito = isset($_SESSION['carrito']) ? count($_SESSION['carrito']) : 0;
 
         .modal-prod { display: none; position: fixed; z-index: 20; left: 0; top: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); justify-content: center; align-items: center; padding: 15px; }
         .modal-prod-box { background: white; border-radius: 16px; padding: 30px; width: 100%; max-width: 900px; max-height: 92vh; overflow-y: auto; position: relative; display: flex; gap: 30px; flex-wrap: wrap; }
-        .modal-prod-img { flex: 1 1 320px; background: #f1f5f9; border-radius: 12px; border: 1px solid var(--borde); display: flex; align-items: center; justify-content: center; min-height: 250px; }
+        .modal-prod-img { flex: 1 1 320px; background: #f1f5f9; border-radius: 12px; border: 1px solid var(--borde); display: flex; align-items: center; justify-content: center; min-height: 340px; position: relative; overflow: hidden; }
         .modal-prod-img img { max-width: 100%; max-height: 360px; object-fit: contain; }
         .modal-prod-info { flex: 1 1 280px; }
         .modal-prod-info h2 { color: var(--azul); margin: 0 0 6px; padding-right: 25px; }
@@ -321,6 +323,7 @@ $total_carrito = isset($_SESSION['carrito']) ? count($_SESSION['carrito']) : 0;
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="componentes/visor3d.js?v=1"></script>
 <script>
     const BASE_URL = <?php echo json_encode($base_url); ?>;
 
@@ -386,10 +389,14 @@ $total_carrito = isset($_SESSION['carrito']) ? count($_SESSION['carrito']) : 0;
             });
 
             document.getElementById('modalProducto').style.display = 'flex';
+
+            // Animación 3D de la imagen (si falla, se queda la imagen normal)
+            Visor3D.montar(document.querySelector('.modal-prod-img'), 'obtener_imagen.php?id=' + id);
         });
     });
 
     function cerrarProducto() {
+        Visor3D.destruir();
         document.getElementById('modalProducto').style.display = 'none';
     }
     document.getElementById('modalProducto').addEventListener('click', function (e) {

@@ -1,127 +1,99 @@
 /*
- * TechPCs - Visor 3D de imágenes v2 (three.js)  ·  "Ensamblado de partículas"
- * Inspirado en los ejemplos de three.js: webgl_points_sprites / webgl_buffergeometry_points
- * (partículas) y en las tarjetas con shader de webgl_shader.
+ * TechPCs - Visor 3D de imágenes v3 (three.js)  ·  "Red de partículas con tarjetitas"
  *
- * Qué hace:
- *   1. La imagen del producto se descompone en miles de partículas (una por "píxel")
- *      que están dispersas por el espacio y se ensamblan en remolino hasta formar la imagen.
- *   2. Las partículas se funden con una tarjeta 3D nítida que flota, se inclina hacia el
- *      cursor / dedo, tiene franja de brillo, resplandor azul pulsante y polvo de estrellas.
- *   3. Al tocar o hacer click sobre la imagen, se vuelve a deshacer y ensamblar.
+ * Es el ejemplo oficial  https://threejs.org/examples/#webgl_buffergeometry_drawrange
+ * (autor: fernandojsg) con la MISMA lógica: cubo de 800 unidades, 500 partículas que rebotan
+ * en las paredes, líneas entre las partículas cercanas (setDrawRange), BoxHelper gris y el
+ * grupo girando sobre el eje Y, cámara a 1750 con FOV 45.
  *
- * Uso (igual que el visor anterior):
+ * Lo que se añadió para TechPCs:
+ *   - La imagen del producto aparece como tarjetitas (12) que flotan dentro de la red. Son parte
+ *     de la red: las líneas se conectan a ellas igual que a cualquier partícula.
+ *   - Las tarjetitas siempre miran a la cámara, tienen marco, esquinas redondeadas, brillo
+ *     y se oscurecen un poco al alejarse.
+ *   - Al pasar el cursor (o tocar con el dedo) una tarjeta se detiene y crece para verla bien.
+ *   - El grupo se inclina suavemente hacia el cursor (en el ejemplo esto lo hace OrbitControls).
+ *
+ * Uso (igual que antes):
  *        Visor3D.montar(contenedor, 'obtener_imagen.php?id=3');
  *        Visor3D.destruir();
  *
- * Si WebGL no está disponible, three.js no carga o el usuario prefiere menos
- * movimiento, no hace nada y se queda visible la <img> normal del contenedor.
+ * Los mismos valores del panel del ejemplo (lil-gui) están en  Visor3D.efecto  por si quieres
+ * cambiarlos, por ejemplo:  Visor3D.efecto.distanciaMinima = 200;
+ *
+ * Si WebGL no está disponible, three.js no carga o el usuario prefiere menos movimiento,
+ * no hace nada y se queda visible la <img> normal del contenedor.
  */
 const Visor3D = (function () {
     const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-    const FOV = 35;
-    const FILL = 0.8;        // cuánto del recuadro ocupa la imagen (deja espacio al resplandor)
-    const COLS = 110;        // partículas a lo ancho
-    const T_ENSAMBLE = 1.8;  // segundos que tardan en ensamblarse
-    const FONDO = 'radial-gradient(circle at 50% 42%, #1e3a8a 0%, #0f1b3d 55%, #070d1c 100%)';
+
+    // Constantes del ejemplo original
+    const R = 800;
+    const R_HALF = R / 2;
+    const MAX_PARTICULAS = 1000;
+
+    // Añadidos para las tarjetitas
+    const N_TARJETAS = 12;
+    const TAM_TARJETA = 300;     // tamaño del lado mayor, en unidades del cubo
+    const MAX_PARES = 80000;     // tope de líneas (el original reserva 1,000,000, aquí basta con menos)
+
+    // Mismos parámetros que el panel "Controls" del ejemplo
+    const efecto = {
+        mostrarPuntos: true,      // showDots
+        mostrarLineas: true,      // showLines
+        distanciaMinima: 150,     // minDistance
+        limitarConexiones: false, // limitConnections
+        maxConexiones: 20,        // maxConnections
+        particulas: 500           // particleCount (incluye las tarjetitas)
+    };
 
     let cargaPromesa = null;
     let estado = null;
     let token = 0;
 
-    /* ---------- Shaders de las partículas de la imagen ---------- */
-    const VERT_P = `
-        attribute vec3 aStart;
-        attribute vec3 aColor;
-        attribute float aRand;
-        uniform float uAssemble;
-        uniform float uTime;
-        uniform float uWorld;
-        uniform float uScale;
-        uniform float uAlpha;
-        varying vec3 vColor;
-        varying float vA;
-        void main() {
-            float delay = aRand * 0.4;
-            float k = clamp((uAssemble - delay) / 0.6, 0.0, 1.0);
-            float e = 1.0 - pow(1.0 - k, 3.0);
-            vec3 p = mix(aStart, position, e);
-            float sw = 1.0 - e;
-            p.x += sin(uTime * 2.2 + aRand * 40.0) * 0.07 * sw;
-            p.y += cos(uTime * 1.9 + aRand * 30.0) * 0.07 * sw;
-            vec4 mv = modelViewMatrix * vec4(p, 1.0);
-            gl_Position = projectionMatrix * mv;
-            gl_PointSize = max(uWorld * mix(0.5, 1.0, e) * uScale / (-mv.z), 1.0);
-            vColor = aColor;
-            vA = uAlpha * mix(0.6, 1.0, e);
-        }
-    `;
-    const FRAG_P = `
-        varying vec3 vColor;
-        varying float vA;
-        void main() {
-            gl_FragColor = vec4(vColor, vA);
-        }
-    `;
-
-    /* ---------- Shaders de la tarjeta (imagen nítida) ---------- */
-    const VERT_C = `
+    /* ---------- Shader de las tarjetitas ---------- */
+    const VERT_T = `
         varying vec2 vUv;
         void main() {
             vUv = uv;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
     `;
-    const FRAG_C = `
+    const FRAG_T = `
         uniform sampler2D map;
-        uniform float uTime;
-        uniform vec2 uMouse;
+        uniform float uAsp;
         uniform float uHover;
-        uniform float uCard;
+        uniform float uShade;
+        uniform float uTime;
+        uniform float uOff;
         varying vec2 vUv;
         void main() {
+            // Rectángulo con esquinas redondeadas (sin deformarse con la proporción de la imagen)
+            vec2 p = (vUv - 0.5) * vec2(uAsp, 1.0);
+            vec2 mitad = vec2(uAsp, 1.0) * 0.5;
+            float r = 0.09;
+            vec2 q = abs(p) - (mitad - vec2(r));
+            float d = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;
+            if (d > 0.0) discard;
+
             vec4 c = texture2D(map, vUv);
             vec3 col = mix(vec3(1.0), c.rgb, c.a);
 
-            // Franja de brillo que recorre la imagen
-            float t = fract(uTime * 0.18);
+            // Franja de brillo que recorre la tarjeta
+            float t = fract(uTime * 0.25 + uOff);
             float banda = vUv.x * 0.8 + vUv.y * 0.6;
-            float d = abs(banda - (t * 2.0 - 0.3));
-            float brillo = (1.0 - smoothstep(0.0, 0.12, d)) * 0.22;
+            col += (1.0 - smoothstep(0.0, 0.1, abs(banda - (t * 2.0 - 0.3)))) * 0.18;
 
-            // Resplandor que sigue al cursor
-            float glow = (1.0 - smoothstep(0.0, 0.55, distance(vUv, uMouse))) * 0.16 * uHover;
+            // Más oscura cuanto más lejos esté de la cámara
+            col *= uShade;
 
-            col += vec3(brillo + glow);
+            // Marco (blanco; azul cuando está seleccionada)
+            vec3 borde = mix(vec3(0.82, 0.88, 1.0), vec3(0.35, 0.65, 1.0), uHover);
+            col = mix(col, borde, smoothstep(-0.032, -0.026, d));
 
-            // Borde suave para dar sensación de tarjeta
-            vec2 e = min(vUv, 1.0 - vUv);
-            float borde = smoothstep(0.0, 0.012, min(e.x, e.y));
-            col *= mix(0.85, 1.0, borde);
-
-            gl_FragColor = vec4(col, uCard);
+            gl_FragColor = vec4(col, 1.0);
         }
     `;
-
-    /* ---------- Shader del halo azul detrás de la tarjeta ---------- */
-    const FRAG_G = `
-        uniform float uTime;
-        uniform float uA;
-        varying vec2 vUv;
-        void main() {
-            vec2 d = abs(vUv - 0.5) * 2.0;
-            float r = max(d.x, d.y);
-            float a = 1.0 - smoothstep(0.78, 1.0, r);
-            a *= a;
-            a *= (0.5 + 0.12 * sin(uTime * 1.6)) * uA;
-            gl_FragColor = vec4(0.25, 0.55, 1.0, a);
-        }
-    `;
-
-    function sstep(a, b, x) {
-        const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
-        return t * t * (3 - 2 * t);
-    }
 
     // Carga three.js solo la primera vez que se necesita
     function cargarThree() {
@@ -142,20 +114,6 @@ const Visor3D = (function () {
         return new Promise(function (ok, fallo) {
             new THREE.TextureLoader().load(src, ok, undefined, fallo);
         });
-    }
-
-    // Lee los colores de la imagen en una malla de cols x rows
-    function muestrear(imagen, cols, rows) {
-        try {
-            const c = document.createElement('canvas');
-            c.width = cols;
-            c.height = rows;
-            const g = c.getContext('2d');
-            g.drawImage(imagen, 0, 0, cols, rows);
-            return g.getImageData(0, 0, cols, rows).data;
-        } catch (err) {
-            return null; // si el navegador bloquea la lectura, se omiten las partículas
-        }
     }
 
     function destruir() {
@@ -204,162 +162,145 @@ const Visor3D = (function () {
         canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y;';
         if (getComputedStyle(contenedor).position === 'static') contenedor.style.position = 'relative';
         const bgPrevio = contenedor.style.background;
-        contenedor.style.background = FONDO;
+        contenedor.style.background = '#000';
         contenedor.appendChild(canvas);
 
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setClearColor(0x000000, 0);
 
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 100);
-        camera.position.z = 1 / Math.tan(THREE.MathUtils.degToRad(FOV / 2)); // alto visible = 2
-
         const liberar = [tex];
-        const imgAspecto = (tex.image && tex.image.height) ? tex.image.width / tex.image.height : 1;
 
-        /* --- Estrellas de fondo (como webgl_points_sprites) --- */
-        const NE = 350;
-        const posE = new Float32Array(NE * 3);
-        for (let i = 0; i < NE; i++) {
-            posE[i * 3] = (Math.random() - 0.5) * 6;
-            posE[i * 3 + 1] = (Math.random() - 0.5) * 4;
-            posE[i * 3 + 2] = -2 + Math.random() * 3.5;
-        }
-        const geoE = new THREE.BufferGeometry();
-        geoE.setAttribute('position', new THREE.BufferAttribute(posE, 3));
-        const matE = new THREE.PointsMaterial({
-            size: 0.03, color: 0x9cc3ff, transparent: true, opacity: 0.7,
-            depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending
+        /* ====== Escena (igual que el ejemplo) ====== */
+        const camera = new THREE.PerspectiveCamera(45, 1, 1, 4000);
+        camera.position.z = 1750;
+
+        const scene = new THREE.Scene();
+        const group = new THREE.Group();
+        scene.add(group);
+
+        const helper = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(R, R, R)));
+        helper.material.color.setHex(0x474747);
+        helper.material.blending = THREE.AdditiveBlending;
+        helper.material.transparent = true;
+        group.add(helper);
+        liberar.push(helper.geometry, helper.material);
+
+        const positions = new Float32Array(MAX_PARES * 2 * 3);
+        const colors = new Float32Array(MAX_PARES * 2 * 3);
+
+        const pMaterial = new THREE.PointsMaterial({
+            color: 0xFFFFFF,
+            size: 3,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            sizeAttenuation: false
         });
-        const estrellas = new THREE.Points(geoE, matE);
-        estrellas.renderOrder = 0;
-        estrellas.frustumCulled = false;
-        scene.add(estrellas);
-        liberar.push(geoE, matE);
 
-        /* --- Grupo principal: halo + tarjeta + partículas --- */
-        const grupo = new THREE.Group();
-        scene.add(grupo);
+        const particles = new THREE.BufferGeometry();
+        const particlePositions = new Float32Array(MAX_PARTICULAS * 3);
+        const particlesData = [];
+
+        const nT = Math.min(N_TARJETAS, MAX_PARTICULAS);
+        for (let i = 0; i < MAX_PARTICULAS; i++) {
+            particlePositions[i * 3] = Math.random() * R - R / 2;
+            particlePositions[i * 3 + 1] = Math.random() * R - R / 2;
+            particlePositions[i * 3 + 2] = Math.random() * R - R / 2;
+
+            const v = new THREE.Vector3(-1 + Math.random() * 2, -1 + Math.random() * 2, -1 + Math.random() * 2);
+            if (i < nT) v.multiplyScalar(0.55); // las tarjetitas van más despacio
+            particlesData.push({ velocity: v, numConnections: 0 });
+        }
+
+        particles.setDrawRange(0, efecto.particulas);
+        particles.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3).setUsage(THREE.DynamicDrawUsage));
+
+        const pointCloud = new THREE.Points(particles, pMaterial);
+        group.add(pointCloud);
+        liberar.push(particles, pMaterial);
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
+        geometry.computeBoundingSphere();
+        geometry.setDrawRange(0, 0);
+
+        const material = new THREE.LineBasicMaterial({
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            transparent: true
+        });
+
+        const linesMesh = new THREE.LineSegments(geometry, material);
+        linesMesh.frustumCulled = false; // las líneas cambian cada cuadro
+        group.add(linesMesh);
+        liberar.push(geometry, material);
+
+        /* ====== Tarjetitas con la imagen del producto ====== */
+        const imgAspecto = (tex.image && tex.image.height) ? tex.image.width / tex.image.height : 1;
+        const cw = imgAspecto >= 1 ? TAM_TARJETA : TAM_TARJETA * imgAspecto;
+        const ch = imgAspecto >= 1 ? TAM_TARJETA / imgAspecto : TAM_TARJETA;
 
         const geoPlano = new THREE.PlaneGeometry(1, 1);
         liberar.push(geoPlano);
 
-        const matG = new THREE.ShaderMaterial({
-            uniforms: { uTime: { value: 0 }, uA: { value: 0 } },
-            vertexShader: VERT_C, fragmentShader: FRAG_G,
-            transparent: true, depthWrite: false, depthTest: false
-        });
-        const halo = new THREE.Mesh(geoPlano, matG);
-        halo.scale.set(1.28, 1.28, 1);
-        halo.renderOrder = 1;
-        grupo.add(halo);
-        liberar.push(matG);
-
-        const matC = new THREE.ShaderMaterial({
-            uniforms: {
-                map: { value: tex },
-                uTime: { value: 0 },
-                uMouse: { value: new THREE.Vector2(0.5, 0.5) },
-                uHover: { value: 0 },
-                uCard: { value: 0 }
-            },
-            vertexShader: VERT_C, fragmentShader: FRAG_C,
-            transparent: true, depthWrite: false, depthTest: false
-        });
-        const tarjeta = new THREE.Mesh(geoPlano, matC);
-        tarjeta.renderOrder = 2;
-        grupo.add(tarjeta);
-        liberar.push(matC);
-
-        // Partículas de la imagen
-        const rows = Math.max(16, Math.min(220, Math.round(COLS / imgAspecto)));
-        const datos = muestrear(tex.image, COLS, rows);
-        let matP = null;
-        let puntos = null;
-        if (datos) {
-            const n = COLS * rows;
-            const pos = new Float32Array(n * 3);
-            const ini = new Float32Array(n * 3);
-            const col = new Float32Array(n * 3);
-            const rnd = new Float32Array(n);
-            for (let j = 0; j < rows; j++) {
-                for (let i = 0; i < COLS; i++) {
-                    const k = j * COLS + i;
-                    pos[k * 3] = (i + 0.5) / COLS - 0.5;
-                    pos[k * 3 + 1] = 0.5 - (j + 0.5) / rows;
-                    pos[k * 3 + 2] = 0;
-
-                    const th = Math.random() * Math.PI * 2;
-                    const rad = 0.6 + Math.sqrt(Math.random()) * 1.1;
-                    ini[k * 3] = Math.cos(th) * rad * 1.1;
-                    ini[k * 3 + 1] = Math.sin(th) * rad * 0.9;
-                    ini[k * 3 + 2] = (Math.random() - 0.5) * 2.4;
-
-                    const a = datos[k * 4 + 3] / 255;
-                    col[k * 3] = (datos[k * 4] / 255) * a + (1 - a);
-                    col[k * 3 + 1] = (datos[k * 4 + 1] / 255) * a + (1 - a);
-                    col[k * 3 + 2] = (datos[k * 4 + 2] / 255) * a + (1 - a);
-                    rnd[k] = Math.random();
-                }
-            }
-            const geoP = new THREE.BufferGeometry();
-            geoP.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            geoP.setAttribute('aStart', new THREE.BufferAttribute(ini, 3));
-            geoP.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
-            geoP.setAttribute('aRand', new THREE.BufferAttribute(rnd, 1));
-            matP = new THREE.ShaderMaterial({
+        const tarjetas = [];
+        for (let k = 0; k < nT; k++) {
+            const mat = new THREE.ShaderMaterial({
                 uniforms: {
-                    uAssemble: { value: 0 }, uTime: { value: 0 },
-                    uWorld: { value: 0.02 }, uScale: { value: 1000 }, uAlpha: { value: 1 }
+                    map: { value: tex },
+                    uAsp: { value: cw / ch },
+                    uHover: { value: 0 },
+                    uShade: { value: 1 },
+                    uTime: { value: 0 },
+                    uOff: { value: Math.random() }
                 },
-                vertexShader: VERT_P, fragmentShader: FRAG_P,
-                transparent: true, depthWrite: false, depthTest: false
+                vertexShader: VERT_T,
+                fragmentShader: FRAG_T
             });
-            puntos = new THREE.Points(geoP, matP);
-            puntos.frustumCulled = false;
-            puntos.renderOrder = 3;
-            grupo.add(puntos);
-            liberar.push(geoP, matP);
+            const m = new THREE.Mesh(geoPlano, mat);
+            m.scale.set(cw, ch, 1);
+            m.userData = { i: k, sel: 0 };
+            group.add(m);
+            tarjetas.push(m);
+            liberar.push(mat);
         }
 
-        const base = { w: 1, h: 1 };
+        /* ====== Tamaño y cámara ====== */
         function ajustar() {
             const w = contenedor.clientWidth, h = contenedor.clientHeight;
             if (!w || !h) return;
             renderer.setSize(w, h, false);
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
-            // Ajusta la imagen dentro del recuadro sin deformarla
-            let pw = 2 * camera.aspect * FILL;
-            let ph = pw / imgAspecto;
-            if (ph > 2 * FILL) {
-                ph = 2 * FILL;
-                pw = ph * imgAspecto;
-            }
-            base.w = pw;
-            base.h = ph;
-            if (matP) {
-                matP.uniforms.uScale.value = (h * renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
-                matP.uniforms.uWorld.value = Math.max(pw / COLS, ph / rows) * 1.2;
-            }
+            // En recuadros angostos se aleja la cámara para que el cubo quepa completo
+            camera.position.z = 1750 * Math.max(1, 1.05 / camera.aspect);
         }
 
-        // Interacción
-        let hover = 0, hoverSuave = 0, mx = 0, my = 0, rx = 0, ry = 0;
-        const mouse01 = new THREE.Vector2(0.5, 0.5);
+        /* ====== Interacción ====== */
+        let hover = 0, mx = 0, my = 0, rx = 0, ry = 0;
+        const raycaster = new THREE.Raycaster();
+        const ndc = new THREE.Vector2();
+        let elegida = -1;
+
+        function elegir(ev) {
+            const r = canvas.getBoundingClientRect();
+            if (!r.width || !r.height) return;
+            ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+            raycaster.setFromCamera(ndc, camera);
+            const visibles = tarjetas.filter(function (t) { return t.visible; });
+            const golpes = raycaster.intersectObjects(visibles, false);
+            elegida = golpes.length ? golpes[0].object.userData.i : -1;
+        }
         const onMove = function (ev) {
             const r = contenedor.getBoundingClientRect();
             if (!r.width || !r.height) return;
-            const nx = (ev.clientX - r.left) / r.width;
-            const ny = (ev.clientY - r.top) / r.height;
-            mx = nx * 2 - 1;
-            my = ny * 2 - 1;
-            mouse01.set(nx, 1 - ny);
+            mx = ((ev.clientX - r.left) / r.width) * 2 - 1;
+            my = ((ev.clientY - r.top) / r.height) * 2 - 1;
             hover = 1;
+            elegir(ev);
         };
-        const onLeave = function () { hover = 0; };
-        // Tocar / click: la imagen se deshace y se vuelve a ensamblar
-        const onDown = function () { if (estado) estado.t0 = performance.now(); };
+        const onLeave = function () { hover = 0; elegida = -1; };
+        const onDown = function (ev) { elegir(ev); }; // para pantallas táctiles
         contenedor.addEventListener('pointermove', onMove);
         contenedor.addEventListener('pointerleave', onLeave);
         contenedor.addEventListener('pointerdown', onDown);
@@ -369,55 +310,137 @@ const Visor3D = (function () {
         ajustar();
 
         const img = contenedor.querySelector('img');
-        const inicio = performance.now();
         const e = {
             contenedor: contenedor, canvas: canvas, renderer: renderer, ro: ro,
             onMove: onMove, onLeave: onLeave, onDown: onDown, img: img, raf: 0,
-            liberar: liberar, bgPrevio: bgPrevio, t0: inicio
+            liberar: liberar, bgPrevio: bgPrevio
         };
         estado = e;
 
+        /* ====== Animación (misma lógica que animate() del ejemplo) ====== */
+        const inicio = performance.now();
+        let ultimo = inicio;
+        const qCarta = new THREE.Quaternion();
+        const vTmp = new THREE.Vector3();
+
         function frame(ahora) {
             e.raf = requestAnimationFrame(frame);
-            const tg = (ahora - inicio) / 1000;   // tiempo continuo
-            const t = (ahora - e.t0) / 1000;      // tiempo desde el último ensamblado
+            const tg = (ahora - inicio) / 1000;
+            const dt = Math.min((ahora - ultimo) / 16.667, 3); // 1 = un cuadro a 60 fps
+            ultimo = ahora;
 
-            const entrada = 1 - Math.pow(1 - Math.min(t / 2.2, 1), 3);
+            const particleCount = Math.min(efecto.particulas, MAX_PARTICULAS);
+            particles.setDrawRange(0, particleCount);
+            pointCloud.visible = efecto.mostrarPuntos;
+            linesMesh.visible = efecto.mostrarLineas;
 
-            // Partículas -> tarjeta nítida
-            let uCard;
-            if (matP) {
-                matP.uniforms.uAssemble.value = t / T_ENSAMBLE;
-                matP.uniforms.uTime.value = tg;
-                matP.uniforms.uAlpha.value = 1 - sstep(1.95, 2.4, t);
-                puntos.visible = t < 2.5;
-                uCard = sstep(1.55, 2.1, t);
-            } else {
-                uCard = 1 - Math.pow(1 - Math.min(t / 0.9, 1), 3);
+            let vertexpos = 0;
+            let colorpos = 0;
+            let numConnected = 0;
+
+            for (let i = 0; i < particleCount; i++) particlesData[i].numConnections = 0;
+
+            for (let i = 0; i < particleCount; i++) {
+                const particleData = particlesData[i];
+
+                // La tarjeta seleccionada se queda quieta para poder verla
+                if (i !== elegida) {
+                    particlePositions[i * 3] += particleData.velocity.x * dt;
+                    particlePositions[i * 3 + 1] += particleData.velocity.y * dt;
+                    particlePositions[i * 3 + 2] += particleData.velocity.z * dt;
+                }
+
+                if (particlePositions[i * 3 + 1] < -R_HALF || particlePositions[i * 3 + 1] > R_HALF)
+                    particleData.velocity.y = -particleData.velocity.y;
+
+                if (particlePositions[i * 3] < -R_HALF || particlePositions[i * 3] > R_HALF)
+                    particleData.velocity.x = -particleData.velocity.x;
+
+                if (particlePositions[i * 3 + 2] < -R_HALF || particlePositions[i * 3 + 2] > R_HALF)
+                    particleData.velocity.z = -particleData.velocity.z;
+
+                if (efecto.limitarConexiones && particleData.numConnections >= efecto.maxConexiones)
+                    continue;
+
+                // Revisa las partículas cercanas
+                for (let j = i + 1; j < particleCount; j++) {
+                    if (numConnected >= MAX_PARES) break;
+
+                    const particleDataB = particlesData[j];
+                    if (efecto.limitarConexiones && particleDataB.numConnections >= efecto.maxConexiones)
+                        continue;
+
+                    const dx = particlePositions[i * 3] - particlePositions[j * 3];
+                    const dy = particlePositions[i * 3 + 1] - particlePositions[j * 3 + 1];
+                    const dz = particlePositions[i * 3 + 2] - particlePositions[j * 3 + 2];
+                    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                    if (dist < efecto.distanciaMinima) {
+                        particleData.numConnections++;
+                        particleDataB.numConnections++;
+
+                        const alpha = 1.0 - dist / efecto.distanciaMinima;
+
+                        positions[vertexpos++] = particlePositions[i * 3];
+                        positions[vertexpos++] = particlePositions[i * 3 + 1];
+                        positions[vertexpos++] = particlePositions[i * 3 + 2];
+
+                        positions[vertexpos++] = particlePositions[j * 3];
+                        positions[vertexpos++] = particlePositions[j * 3 + 1];
+                        positions[vertexpos++] = particlePositions[j * 3 + 2];
+
+                        colors[colorpos++] = alpha;
+                        colors[colorpos++] = alpha;
+                        colors[colorpos++] = alpha;
+
+                        colors[colorpos++] = alpha;
+                        colors[colorpos++] = alpha;
+                        colors[colorpos++] = alpha;
+
+                        numConnected++;
+                    }
+                }
             }
-            matC.uniforms.uCard.value = uCard;
-            matC.uniforms.uTime.value = tg;
-            matC.uniforms.uHover.value = hoverSuave;
-            matC.uniforms.uMouse.value.lerp(mouse01, 0.15);
-            matG.uniforms.uTime.value = tg;
-            matG.uniforms.uA.value = uCard;
 
-            hoverSuave += (hover - hoverSuave) * 0.1;
-            const tx = hover ? my * 0.3 : Math.cos(tg * 0.5) * 0.07;
-            const ty = hover ? mx * 0.35 : Math.sin(tg * 0.7) * 0.16;
-            rx += (tx - rx) * 0.08;
-            ry += (ty - ry) * 0.08;
+            linesMesh.geometry.setDrawRange(0, numConnected * 2);
+            linesMesh.geometry.attributes.position.needsUpdate = true;
+            linesMesh.geometry.attributes.color.needsUpdate = true;
+            pointCloud.geometry.attributes.position.needsUpdate = true;
 
-            grupo.rotation.x = rx;
-            grupo.rotation.y = ry + (1 - entrada) * 0.9;
-            grupo.rotation.z = (1 - entrada) * -0.15;
-            grupo.position.y = Math.sin(tg * 1.3) * 0.025; // flotación
-            const s = 0.85 + 0.15 * entrada;
-            grupo.scale.set(base.w * s, base.h * s, 1);
+            // Giro del grupo (en el ejemplo: group.rotation.y = time * 0.1) + inclinación hacia el cursor
+            const tx = hover ? my * 0.35 : 0;
+            const ty = hover ? mx * 0.5 : 0;
+            rx += (tx - rx) * 0.06;
+            ry += (ty - ry) * 0.06;
+            group.rotation.x = rx;
+            group.rotation.y = tg * 0.1 + ry;
+            group.updateMatrixWorld();
 
-            // Polvo de estrellas con paralaje
-            estrellas.rotation.y = tg * 0.04 - ry * 0.3;
-            estrellas.rotation.x = Math.sin(tg * 0.1) * 0.05 + rx * 0.2;
+            // Las tarjetitas siempre miran a la cámara
+            qCarta.copy(group.quaternion).invert().multiply(camera.quaternion);
+
+            for (let k = 0; k < tarjetas.length; k++) {
+                const t = tarjetas[k];
+                t.visible = k < particleCount;
+                if (!t.visible) continue;
+
+                t.position.set(particlePositions[k * 3], particlePositions[k * 3 + 1], particlePositions[k * 3 + 2]);
+                t.quaternion.copy(qCarta);
+
+                const ud = t.userData;
+                ud.sel += ((k === elegida ? 1 : 0) - ud.sel) * 0.12;
+                const s = 1 + ud.sel * 1.1;
+                t.scale.set(cw * s, ch * s, 1);
+
+                // Sombreado por profundidad (más lejos = más oscura)
+                vTmp.copy(t.position).applyMatrix4(group.matrixWorld);
+                const prof = Math.min(Math.max((vTmp.z + 566) / 1132, 0), 1);
+
+                const u = t.material.uniforms;
+                u.uShade.value = (0.55 + 0.45 * prof) + ud.sel * 0.2;
+                u.uHover.value = ud.sel;
+                u.uTime.value = tg;
+            }
 
             renderer.render(scene, camera);
         }
@@ -428,5 +451,5 @@ const Visor3D = (function () {
         return true;
     }
 
-    return { montar: montar, destruir: destruir };
+    return { montar: montar, destruir: destruir, efecto: efecto };
 })();

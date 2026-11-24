@@ -39,7 +39,7 @@ if ($p) {
         header { background: #0b1220; color: white; text-align: center; padding: 18px 10px; font-size: 26px; font-weight: 800; letter-spacing: 0.5px; border-bottom: 3px solid #2563eb; }
         header span { color: #3b82f6; }
         .card { background: #ffffff; max-width: 420px; margin: 22px auto; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
-        .visor { position: relative; height: 340px; background: #f1f5f9; overflow: hidden; }
+        .visor { position: relative; height: 340px; background: radial-gradient(circle at center, #eff6ff 0%, #e2e8f0 100%); overflow: hidden; }
         .visor img { width: 100%; height: 100%; object-fit: contain; display: block; }
         .body { padding: 22px; }
         h1 { color: #1e293b; font-size: 24px; margin: 0 0 12px; }
@@ -89,7 +89,7 @@ if ($p) {
 <footer>© <?php echo date('Y'); ?> TechPCs</footer>
 
 <?php if ($p): ?>
-<script src="componentes/visor3d.js?v=1"></script>
+<script src="componentes/visor3d.js?v=2"></script>
 <script>
     // Animación 3D de la imagen (si falla, se queda la imagen normal)
     Visor3D.montar(document.getElementById('visor'), 'obtener_imagen.php?id=<?php echo (int)$p['id']; ?>');

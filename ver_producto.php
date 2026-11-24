@@ -89,7 +89,7 @@ if ($p) {
 <footer>© <?php echo date('Y'); ?> TechPCs</footer>
 
 <?php if ($p): ?>
-<script src="componentes/visor3d.js?v=2"></script>
+<script src="componentes/visor3d_particulas.js?v=1"></script>
 <script>
     // Animación 3D de la imagen (si falla, se queda la imagen normal)
     Visor3D.montar(document.getElementById('visor'), 'obtener_imagen.php?id=<?php echo (int)$p['id']; ?>');
